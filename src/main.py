@@ -93,15 +93,43 @@ def diff_lines(a_lines, b_lines):
     return diff(a_ids, b_ids)
 
 
-def render(a, b, keep_a, keep_b):
+def format_ranges(keep):
+    ranges = []
+    i = 0
+    while i < len(keep):
+        if keep[i]:
+            i += 1
+            continue
+        start = i
+        while i < len(keep) and not keep[i]:
+            i += 1
+        ranges.append(f"{start}-{i}")
+    return ",".join(ranges) if ranges else "."
+
+
+def char_ranges(old, new):
+    old_chars = list(old.decode("utf-8", "surrogateescape"))
+    new_chars = list(new.decode("utf-8", "surrogateescape"))
+    keep_old, keep_new = diff(old_chars, new_chars)
+    line = f"? {format_ranges(keep_old)} | {format_ranges(keep_new)}\n"
+    return line.encode("utf-8")
+
+
+def render(a, b, keep_a, keep_b, highlight):
     out = []
     i = j = 0
     while i < len(a) or j < len(b):
+        deleted = []
         while i < len(a) and not keep_a[i]:
+            deleted.append(a[i])
             out.append(b"-" + a[i] + b"\n")
             i += 1
+        pair = 0
         while j < len(b) and not keep_b[j]:
             out.append(b"+" + b[j] + b"\n")
+            if highlight and pair < len(deleted):
+                out.append(char_ranges(deleted[pair], b[j]))
+            pair += 1
             j += 1
         if i < len(a) and j < len(b):
             out.append(b" " + a[i] + b"\n")
@@ -124,7 +152,8 @@ def main():
         return 2
 
     keep_a, keep_b = diff_lines(a, b)
-    sys.stdout.buffer.write(b"".join(render(a, b, keep_a, keep_b)))
+    out = render(a, b, keep_a, keep_b, command == "highlight")
+    sys.stdout.buffer.write(b"".join(out))
     return 0
 
 
